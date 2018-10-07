@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE struts PUBLIC
+	"-//Apache Software Foundation//DTD Struts Configuration 2.3//EN"
+	"http://struts.apache.org/dtds/struts-2.3.dtd">
+<struts>
+	<!-- 0配置struts对象工厂0 -->
+	<!-- struts.objectFactory=spring -->
+	<!-- struts.objectFactory.spring.autoWire=name(default opened,used to wire action DI by spring) -->
+	<constant name="struts.objectFactory" value="spring"></constant>
+	<constant name="struts.i18n.encoding" value="UTF-8"></constant>
+	<constant name="struts.action.extension" value="action,,"></constant>
+	<package name="sshcrm" namespace="/" extends="struts-default">
+		<interceptors>
+			<interceptor name="loginInterceptor" class="stu.sshcrm.web.intercept.LoginInterceptor"></interceptor>
+			<interceptor-stack name="myStack">
+				<interceptor-ref name="loginInterceptor">
+					<param name="excludeMethods">login,register</param>
+				</interceptor-ref>
+				<interceptor-ref name="defaultStack"></interceptor-ref>
+			</interceptor-stack>
+		</interceptors>
+		<default-interceptor-ref name="myStack"></default-interceptor-ref>
+		<global-results>
+			<result name="toLogin" type="redirect">/login.jsp</result>
+		</global-results>
+		<global-exception-mappings>
+			<exception-mapping result="error" exception="java.lang.RuntimeException"></exception-mapping>
+		</global-exception-mappings>
+	
+		<!-- 0用户管理0 -->
+		<action name="user_*" class="userAction" method="{1}">
+			<result name="toHome" type="redirect">/index.html</result>
+			<result name="exit">/top.jsp</result>
+			<result name="loginError">/login.jsp</result>
+			<result name="registError">/register.jsp</result>
+			<result name="error">/jsp/error.jsp</result>
+			<exception-mapping result="loginError" exception="stu.sshcrm.web.exception.LoginException"></exception-mapping>
+			<exception-mapping result="registError" exception="stu.sshcrm.web.exception.RegisterException"></exception-mapping>
+		</action>
+		<!-- 1客户管理1 -->
+		<action name="cust_*" class="custAction" method="{1}">
+			<result name="list">/jsp/customer/list.jsp</result>
+			<result name="toList" type="redirectAction">
+				<param name="actionName">cust_list</param>
+				<param name="namespace">/</param>
+			</result>
+			<result name="edit">/jsp/customer/edit.jsp</result>
+			<result name="error">/jsp/error.jsp</result>
+		</action>
+		<!-- 2联系人管理2 -->
+		<action name="lkm_*" class="lkmAction" method="{1}">
+			<result name="list">/jsp/linkman/list.jsp</result>
+			<result name="toList" type="redirectAction">
+				<param name="actionName">lkm_list</param>
+				<param name="namespace">/</param>
+			</result>
+			<result name="addUI">/jsp/linkman/add.jsp</result>
+			<result name="editUI">/jsp/linkman/edit.jsp</result>
+			<result name="error">/jsp/error.jsp</result>
+		</action>
+	</package>
+	
+	<package name="test" namespace="/ts" extends="struts-default">
+		<action name="test_*" class="stu.sshcrm.test.TestAction" method="{1}">
+			<result name="success">/</result>
+		</action>
+	</package>
+</struts>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.springframework.org/schema/beans" xmlns:context="http://www.springframework.org/schema/context" xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx" xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.2.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.2.xsd http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.2.xsd http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.2.xsd ">
+	<context:property-placeholder location="classpath:db.properties"/>
+	<bean name="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+	 	<property name="driverClass" value="${jdbc.driverClass}"></property>
+	 	<property name="jdbcUrl" value="${jdbc.jdbcUrl}"></property>
+	 	<property name="user" value="${jdbc.user}"></property>
+	 	<property name="password" value="${jdbc.password}"></property>
+	</bean>
+	<bean name="sessionFactory" class="org.springframework.orm.hibernate5.LocalSessionFactoryBean">
+		<!-- 1配置连接池替代hibernate连接信息配置1 -->
+		<property name="dataSource" ref="dataSource"></property>
+		<!-- 0方案1：依旧使用hibernate.cfg.xml0 -->
+		<!-- 0.0不推荐，尽量将配置向spring偏移0.0 -->
+		<!-- <property name="configLocations" value="classpath:hibernate.cfg.xml"></property> -->
+		<!-- 0方案2：直接在spring中配置数据库连接信息和映射文件 -->
+		<property name="hibernateProperties">
+			<props>
+				<!-- <prop key="hibernate.connection.driver_class">com.mysql.jdbc.Driver</prop>
+				<prop key="hibernate.connection.url">jdbc:mysql:///framedb?useSSL=true&amp;characterEncoding=UTF-8</prop>
+				<prop key="hibernate.connection.username">root</prop>
+				<prop key="hibernate.connection.password">ljx1234</prop> -->
+				<prop key="hibernate.dialect">org.hibernate.dialect.MySQL5InnoDBDialect</prop>
+				<prop key="hibernate.show_sql">true</prop>
+				<prop key="hibernate.format_sql">true</prop>
+				<prop key="hibernate.hbm2ddl.auto">update</prop>
+			</props>
+		</property>
+		<property name="mappingDirectoryLocations" value="classpath:stu/sshcrm/domain"></property>
+	</bean>
+	<!-- 2配置核心事务管理器HibernateTransactionManager2 -->
+	<bean name="transactionManager" class="org.springframework.orm.hibernate5.HibernateTransactionManager">
+		<property name="sessionFactory" ref="sessionFactory"></property>
+	</bean>
+	<!-- 3配置通知（增强）和织入3 -->
+	<!-- <tx:advice id="txAdvice">
+		<tx:attributes>
+			<tx:method name="test*" isolation="REPEATABLE_READ" propagation="REQUIRED" read-only="false"/>
+		</tx:attributes>
+	</tx:advice>
+	<aop:config>
+		<aop:pointcut expression="execution(* stu.sshcrm.test.*ServiceImpl.*(..))" id="txPc"/>
+		<aop:advisor advice-ref="txAdvice" pointcut-ref="txPc"/>
+	</aop:config> -->
+	<!-- 4开启注解AOP事务管理4 -->
+	<tx:annotation-driven transaction-manager="transactionManager"/>
+	<bean name="testDao" class="stu.sshcrm.test.TestDaoImpl">
+		<property name="sessionFactory" ref="sessionFactory"></property>
+	</bean>
+	<bean name="testService" class="stu.sshcrm.test.TestServiceImpl">
+		<property name="testDao" ref="testDao"></property>
+	</bean>
+	<bean name="testAction" class="stu.sshcrm.test.TestAction" scope="prototype">
+		<property name="testService" ref="testService"></property>
+	</bean>
+</beans>

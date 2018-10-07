@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC 
+    "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+    "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="stu.sshcrm.domain">
+	<class name="User" table="sys_user">
+		<id name="user_id">
+			<generator class="native"></generator>
+		</id>
+		<property name="user_code"></property>
+		<property name="user_name"></property>
+		<property name="user_password"></property>
+		<property name="user_state"></property>
+
+		<!-- 0表示多对多关系0 -->
+		<set name="roles" table="sys_user_role" cascade="save-update">
+			<!-- 0设置被引用为外键的字段0 -->
+			<key column="user_id"></key>
+			<!-- 0设置0对应的哪个多的一方，以及引用哪个字段为外键 -->
+			<many-to-many class="Role" column="role_id"></many-to-many>
+		</set>
+	</class>
+</hibernate-mapping>

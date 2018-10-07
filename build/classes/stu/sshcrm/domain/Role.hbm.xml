@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE hibernate-mapping PUBLIC 
+    "-//Hibernate/Hibernate Mapping DTD 3.0//EN"
+    "http://www.hibernate.org/dtd/hibernate-mapping-3.0.dtd">
+<hibernate-mapping package="stu.sshcrm.domain">
+	<class name="Role" table="sys_role">
+		<id name="role_id">
+			<generator class="native"></generator>
+		</id>
+		<property name="role_name"></property>
+		<property name="role_memo"></property>
+	
+		<!-- 0表示多对多关系0 -->
+		<set name="users" table="sys_user_role" inverse="true">
+			<!-- 0设置被引用为外键的字段0 -->
+			<key column="role_id"></key>
+			<!-- 0设置0对应的哪个多的一方，以及引用哪个字段为外键 -->
+			<many-to-many class="User" column="user_id"></many-to-many>
+		</set>
+	</class>
+</hibernate-mapping>

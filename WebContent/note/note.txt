@@ -1,0 +1,195 @@
+SSH整合
+
+1、导包
+	（1）Hibernate：
+			|--hibernate/lib/required（9）
+			|--hibernate/lib/jpa/hibernate-entitymanager-5.0.7.Final.jar（1）
+			|--数据库驱动包mysql-connector-java-5.1.45-bin.jar（1）
+	（2）Struts2
+			|--struts-2.3.34/apps/struts2-blank/WEB-INF/lib/*（12）
+			|--Struts+Spring整合包：struts-2.3.34/lib/struts2-spring-plugin-2.3.34.jar（1）
+				该包导入则在启动时会寻找Spring容器，找不到则抛出异常
+	（3）Spring
+			|--基础包：core | beans | context | spEL | logging | log4j （6）
+			|--Web环境包：web（1）
+			|--面向切面AOP包：aop | aspects | aopalliance | aspectj.weaver（4）
+			|--Hibernate+Spring整合包：jdbc | tx | orm | c3p0 （4）
+			|--Junit整合包：test（1）
+	（4）JSTL标签库（2）
+
+	注意：删掉重复包javassist-x.y.z.jar
+
+2、单独整合Spring到Web中
+	创建主配置文件applicationContext.xml并导入约束
+	将核心监听器配置到web.xml
+	将一个Action配置到Spring容器中并测试
+	
+3、单独配置Struts
+	书写struts.xml
+	配置struts2核心过滤器
+
+4、Struts+Spring整合
+	方案一：半自动化，Struts自己创建Action，Action中的属性依赖由Spring组装注入
+			<action name="test_*" class="total_name" method="{1}">
+				<result name="success">/</result>
+			</action>
+		不推荐，理由如下：
+			Action生命周期因由Spring完全管理，这样才能将Spring的好用功能应用到Action中。
+	方案二：全自动化：Action由Spring创建，其属性由Spring注入（需要开发者手动注入）。
+			但Struts需要Action时自动从容器中取出
+		
+		applictionContext.xml中
+			<bean name="testAction" class="stu.sshcrm.test.TestAction" scope="prototype">
+				<property name="testService" ref="testService"></property>
+			</bean>
+			
+		struts.xml中	
+			<action name="test_*" class="testAction" method="{1}">
+				<result name="success">/</result>
+			</action>
+		
+		注意事项：
+			在spring容器中，action应该配成多例的，因为Struts2要求每次请求都创建一个Action。
+			Action中的Service属性需要开发者手动注入
+
+5、单独配置hibernate
+	修改主配置文件，去除事务管理及session与线程绑定的配置
+	测试
+	
+6、Hibernate+Spring整合
+	整合原理：将SessionFactory交给Spring容器管理，由Spring负责维护session和AOP事务
+			将LocalSessionFactoryBean配置到容器
+	Spring读取数据库连接配置信息
+	方案1：依旧使用hibernate.cfg.xml，需要配置configLocations属性
+		<property name="configLocations" value="classpath:hibernate.cfg.xml"></property>
+	
+	方案2：直接在LocalSessionFactoryBean中配置连接信息,
+			配置两个属性，一个properties，一个mapping。
+				mapping可选mappingDirectoryLocations（推荐）或mappingResources
+		<property name="hibernateProperties">
+			<props>
+				<prop key="hibernate.connection.driver_class">com.mysql.jdbc.Driver</prop>
+				<prop key="hibernate.connection.url">jdbc:mysql:///framedb?useSSL=true&amp;characterEncoding=UTF-8</prop>
+				<prop key="hibernate.connection.username">root</prop>
+				<prop key="hibernate.connection.password">ljx1234</prop>
+				<prop key="hibernate.dialect">org.hibernate.dialect.MySQL5InnoDBDialect</prop>
+				<prop key="hibernate.show_sql">true</prop>
+				<prop key="hibernate.format_sql">true</prop>
+				<prop key="hibernate.hbm2ddl.auto">update</prop>
+			</props>
+		</property>
+		<property name="mappingDirectoryLocations" value="classpath:stu/sshcrm/domain"></property>	
+	
+	Spring整合C3P0
+		<context:property-placeholder location="classpath:db.properties"/>
+		<bean name="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+		 	<property name="driverClass" value="${jdbc.driverClass}"></property>
+		 	<property name="jdbcUrl" value="${jdbc.jdbcUrl}"></property>
+		 	<property name="user" value="${jdbc.user}"></property>
+		 	<property name="password" value="${jdbc.password}"></property>
+		</bean>
+	整合后需要去掉hibernate原始连接配置，并加上连接池配置，让hibernate从连接池中获取连接	
+		<property name="dataSource" ref="dataSource"></property>
+	整合好C3P0之后测试配置是否成功。
+	
+	使用HibernateTemplate完成数据库操作
+		（1）让DaoImpl继承HibernateDaoSupport
+		（2）在容器中配置Dao，并将SessionFactory注入
+			<bean name="testDao" class="stu.sshcrm.test.TestDaoImpl">
+				<property name="sessionFactory" ref="sessionFactory"></property>
+			</bean>
+		（3）在Service中将Dao注入
+			<bean name="testService" class="stu.sshcrm.test.TestServiceImpl">
+				<property name="testDao" ref="testDao"></property>
+			</bean>
+		（4）书写代码测试
+	
+	HibernateTemplate查询操作
+		//HQL查询
+		return getHibernateTemplate().execute(new HibernateCallback<Object>() {
+			@Override
+			public Object doInHibernate(Session session) throws HibernateException {
+				return obj;
+			}
+		});
+		
+		//Criteria查询
+		DetachedCriteria dc = DetachedCriteria.forClass(User.class);
+		dc.add(Restrictions.eq("user_code", user_code));
+		@SuppressWarnings("unchecked")
+		List<User> users = (List<User>) getHibernateTemplate().findByCriteria(dc); //findByCriteria封装了dc.getExecutableCriteria(session)和执行查询
+		if(users != null && users.size() > 0) {
+			return users.get(0);
+		}
+
+	
+	将事务管理交给Spring
+	配置核心事务管理器HibernateTransactionManager
+		<bean name="transactionManager" class="org.springframework.orm.hibernate5.HibernateTransactionManager">
+			<property name="sessionFactory" ref="sessionFactory"></property>
+		</bean>
+	配置AOP事务
+		xml配置：
+			配置通知：
+				<tx:advice id="txAdvice">
+					<tx:attributes>
+						<tx:method name="save*" isolation="REPEATABLE_READ" propagation="REQUIRED" read-only="false"/>
+						<tx:method name="delete*" isolation="REPEATABLE_READ" propagation="REQUIRED" read-only="false"/>
+						<tx:method name="update*" isolation="REPEATABLE_READ" propagation="REQUIRED" read-only="false"/>
+						<tx:method name="get*" isolation="REPEATABLE_READ" propagation="REQUIRED" read-only="true"/>
+						<tx:method name="persist*" isolation="REPEATABLE_READ" propagation="REQUIRED" read-only="false"/>
+						<tx:method name="remove*" isolation="REPEATABLE_READ" propagation="REQUIRED" read-only="false"/>
+						<tx:method name="modify*" isolation="REPEATABLE_READ" propagation="REQUIRED" read-only="false"/>
+						<tx:method name="find*" isolation="REPEATABLE_READ" propagation="REQUIRED" read-only="true"/>
+					</tx:attributes>
+				</tx:advice>
+		
+			配置织入：
+				<aop:config>
+					<aop:pointcut expression="execution(* stu.sshcrm.service.impl.*ServiceImpl.*(..))" id="txPc"/>
+					<aop:advisor advice-ref="txAdvice" pointcut-ref="txPc"/>
+				</aop:config>
+
+		注解Annotation配置：
+			开启注解AOP事务
+				<tx:annotation-driven transaction-manager="transactionManager"/>
+			使用注解AOP事务
+				@Transactional(isolation=Isolation.REPEATABLE_READ,propagation=Propagation.REQUIRED,readOnly=true)
+			
+	扩大Session作用范围，解决使用懒加载策略时No Session问题
+	配置OpenSessionInViewFilter过滤器
+	
+	注意：该过滤器一定要配置Struts核心过滤器之前。
+	发现：在Struts环境中，若要使用自定义过滤器，都要配置在核心过滤器之前，因为一旦请求进入struts处理流程中，就不放行了。
+
+
+java.lang.IllegalStateException: Failed to load ApplicationContext
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'sessionFactory' defined in class path resource [stu/sshcrm/test/applicationContext.xml]: Invocation of init method failed; nested exception is java.io.FileNotFoundException: class path resource [stu.sshcrm.domain] cannot be resolved to URL because it does not exist
+Caused by: java.io.FileNotFoundException: class path resource [stu.sshcrm.domain] cannot be resolved to URL because it does not exist
+
+java.lang.NullPointerException
+	at stu.sshcrm.test.TestServiceImpl.test01(TestServiceImpl.java:16)
+	at stu.sshcrm.test.TestAction.test01(TestAction.java:18)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+
+DEBUG [http-nio-8080-exec-8] - Executing action method = test01
+DEBUG [http-nio-8080-exec-8] - Could not retrieve pre-bound Hibernate session
+org.hibernate.HibernateException: Could not obtain transaction-synchronized Session for current thread	
+
+//需要开启事务
+:spring4+hibernate4,使用hibernate的api的时候需要配置事务的,如果不配置事务会导致获取当前session抛出异常.
+org.hibernate.HibernateException: Could not obtain transaction-synchronized Session for current thread
+
+//未开启事务或者事务处于只读状态但执行了写操作
+Turn your Session into FlushMode.COMMIT/AUTO or remove 'readOnly' marker from transaction definition.
+DEBUG [http-nio-8080-exec-3] - Error calling method through OGNL: object: [stu.sshcrm.test.TestAction@468b3228] method: [test03] args: [[]]
+org.springframework.dao.InvalidDataAccessApiUsageException: Write operations are not allowed in read-only mode (FlushMode.MANUAL): Turn your Session into FlushMode.COMMIT/AUTO or remove 'readOnly' marker from transaction definition.
+ERROR [http-nio-8080-exec-3] - Exception occurred during processing request: Write operations are not allowed in read-only mode (FlushMode.MANUAL): Turn your Session into FlushMode.COMMIT/AUTO or remove 'readOnly' marker from transaction definition.
+org.springframework.dao.InvalidDataAccessApiUsageException: Write operations are not allowed in read-only mode (FlushMode.MANUAL): Turn your Session into FlushMode.COMMIT/AUTO or remove 'readOnly' marker from transaction definition.
+
+
+
+
